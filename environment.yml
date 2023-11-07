@@ -1,0 +1,8 @@
+# To run: $ conda env create -f environment.yml
+name: phase_unwrap
+channels:
+    - conda-forge
+dependencies:
+    - python=3.8
+    - pip
+    - scikit-image
