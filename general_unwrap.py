@@ -49,14 +49,65 @@ def read_horizontal_4_phase(base_path: str) -> list:
 
     return [imgpath_1, imgpath_2, imgpath_3, imgpath_4]
 
+def draw_plot_save_phase_profile(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, column: int, row: int):
+    # color the column and row with max value (2pi)
+    vertical_profile = phase_map_vertical[:, column].copy()
+    phase_map_vertical[:, column] = 2 * np.pi
+    horizontal_profile = phase_map_horizontal[row, :].copy()
+    phase_map_horizontal[row, :] = 2 * np.pi
+
+    # plot
+    fig, axs = plt.subplots(2, 2, figsize=(8,6))
+    p0 = axs[0,0].imshow(phase_map_vertical, cmap='gray')
+    fig.colorbar(p0, ax=axs[0,0])
+    axs[0,0].set_title('Vertical Unwrapped Phase (Column=' + str(column) + ')')
+    axs[0,1].plot(vertical_profile)
+
+    p1 = axs[1,0].imshow(phase_map_horizontal, cmap='gray')
+    fig.colorbar(p1, ax=axs[1,0])
+    axs[1,0].set_title('Horizontal Unwrapped Phase (Row=' + str(row) + ')')
+    axs[1,1].plot(horizontal_profile)
+
+    fig.tight_layout() # to avoid axes overlapping
+    fig.savefig(os.path.join(sub_folder, 'phase_map_profile.png')) # save
+
+def draw_plot_save_singleshot_profile(sub_folder: str, img_file_name: str, column: int, row: int):
+    # read single shot pattern img
+    img_1 = cv2.imread(os.path.join(sub_folder, img_file_name), cv2.IMREAD_GRAYSCALE).astype(np.float32)
+    img_2 = cv2.imread(os.path.join(sub_folder, img_file_name), cv2.IMREAD_GRAYSCALE).astype(np.float32)
+
+    # color the column and row with max value (white)
+    vertical_profile = img_1[:, column].copy()
+    img_1[:, column] = 255
+    horizontal_profile = img_2[row, :].copy()
+    img_2[row, :] = 255
+
+    # plot
+    fig, axs = plt.subplots(2, 2, figsize=(8,6))
+    p0 = axs[0,0].imshow(img_1, cmap='gray')
+    fig.colorbar(p0, ax=axs[0,0])
+    axs[0,0].set_title('Vertical Single-Shot (Column=' + str(column) + ')')
+    axs[0,1].plot(vertical_profile)
+
+    p1 = axs[1,0].imshow(img_2, cmap='gray')
+    fig.colorbar(p1, ax=axs[1,0])
+    axs[1,0].set_title('Horizontal Single-Shot (Row=' + str(row) + ')')
+    axs[1,1].plot(horizontal_profile)
+
+    fig.tight_layout() # to avoid axes overlapping
+    fig.savefig(os.path.join(sub_folder, 'single_shot_profile.png')) # save
+
 if __name__ == '__main__':
     base_path = './dl_data_set/dl_deflec_eye/'
     sub_folders = read_folder(base_path, 999)
     for s in tqdm(sub_folders):
+        # get single period unwrapped phase maps
         phase_map_vertical = phase_map_calculate(read_vertical_4_phase(s))
         phase_map_horizontal = phase_map_calculate(read_horizontal_4_phase(s))
 
-        plt.imshow(phase_map_vertical, cmap='gray')
-        plt.show()
-        plt.imshow(phase_map_horizontal, cmap='gray')
-        plt.show()
+        # unwrapped phase map profile info save
+        draw_plot_save_phase_profile(s, phase_map_vertical, phase_map_horizontal, 150, 150)
+
+        # single shot pattern profile info save
+        draw_plot_save_singleshot_profile(s, 'img_8.png', 150, 150)
+        
