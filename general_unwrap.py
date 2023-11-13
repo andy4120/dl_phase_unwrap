@@ -49,6 +49,19 @@ def read_horizontal_4_phase(base_path: str) -> list:
 
     return [imgpath_1, imgpath_2, imgpath_3, imgpath_4]
 
+def save_unwrapped_phase(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, vertical_file_name: str, horizontal_file_name: str):
+    # save phase unwrapped files (0-2pi)
+    cv2.imwrite(os.path.join(sub_folder, vertical_file_name), phase_map_vertical)
+    cv2.imwrite(os.path.join(sub_folder, horizontal_file_name), phase_map_horizontal)
+
+    # save minmax-normalized images (0-255)
+    vertical_norm_file_name = vertical_file_name.split('.')[0] + '_norm.' + vertical_file_name.split('.')[1]
+    vertical_minmax = cv2.normalize(phase_map_vertical, None, 0, 255, cv2.NORM_MINMAX)
+    cv2.imwrite(os.path.join(sub_folder, vertical_norm_file_name), vertical_minmax)
+    horizontal_norm_file_name = horizontal_file_name.split('.')[0] + '_norm.' + horizontal_file_name.split('.')[1]
+    horizontal_minmax = cv2.normalize(phase_map_horizontal, None, 0, 255, cv2.NORM_MINMAX)
+    cv2.imwrite(os.path.join(sub_folder, horizontal_norm_file_name), horizontal_minmax)
+
 def draw_plot_save_phase_profile(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, column: int, row: int):
     # color the column and row with max value (2pi)
     vertical_profile = phase_map_vertical[:, column].copy()
@@ -105,9 +118,15 @@ if __name__ == '__main__':
         phase_map_vertical = phase_map_calculate(read_vertical_4_phase(s))
         phase_map_horizontal = phase_map_calculate(read_horizontal_4_phase(s))
 
+        # save unwrapped phase
+        save_unwrapped_phase(s, phase_map_vertical, phase_map_horizontal, 'img_9.png', 'img_10.png')
+
+        ''' DEBUG PURPOSES '''
+        """
         # unwrapped phase map profile info save
         draw_plot_save_phase_profile(s, phase_map_vertical, phase_map_horizontal, 150, 150)
 
         # single shot pattern profile info save
         draw_plot_save_singleshot_profile(s, 'img_8.png', 150, 150)
+        """
         
