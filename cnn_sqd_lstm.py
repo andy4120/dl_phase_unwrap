@@ -112,3 +112,36 @@ def cnn_sqd_lstm_model():
     model = Model(inputs=[input], outputs=[output1, output2])  # Specify two outputs
 
     return model
+
+if __name__ == '__main__':
+    model = cnn_sqd_lstm_model()
+    model.summary()
+
+    model.compile(
+        optimizer=adam_v2.Adam(learning_rate=1e-3),
+        loss=keras.losses.mean_squared_error
+    )
+
+    earlystopper = EarlyStopping(
+        monitor='loss',
+        patience=5000,
+        verbose=1
+    )
+
+    score = model.evaluate(X.reshape(X.shape[0], 1024, 1024, 1), y.reshape(y.shape[0], 1024, 1024, 1), batch_size=6)
+    model_checkpoint = ModelCheckpoint(
+        model_path,
+        monitor='loss',
+        verbose = 1,
+        save_best_only=True
+    )
+    model_checkpoint.best = score
+
+    history = model.fit(
+        x = X.reshape(X.shape[0], 1024, 1024, 1),
+        y = y.reshape(y.shape[0], 1024, 1024, 1),
+        batch_size=6,
+        epochs=20000,
+        verbose=True,
+        callbacks=[model_checkpoint]   
+    )
