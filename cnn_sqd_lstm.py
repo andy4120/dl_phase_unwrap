@@ -1,4 +1,8 @@
+# import tensorflow as tf
+from keras.optimizer_v2 import adam as adam_v2
 from keras.layers import Input, Conv2D, BatchNormalization, Activation, MaxPooling2D, Conv2DTranspose, concatenate, Reshape, Permute, Bidirectional, LSTM
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras import losses
 from keras.models import Model
 
 def cnn_sqd_lstm_model():
@@ -48,14 +52,14 @@ def cnn_sqd_lstm_model():
 
 
     # SQD-LSTM Block
-    x_hor_1 = Reshape((16 * 16, 512))(p6)
-    x_ver_1 = Reshape((16 * 16, 512))(Permute((2, 1, 3))(p6))
+    x_hor_1 = Reshape((8 * 8, 512))(p6)
+    x_ver_1 = Reshape((8 * 8, 512))(Permute((2, 1, 3))(p6))
 
     h_hor_1 = Bidirectional(LSTM(units=128, activation='tanh', return_sequences=True, go_backwards=False))(x_hor_1)
     h_ver_1 = Bidirectional(LSTM(units=128, activation='tanh', return_sequences=True, go_backwards=False))(x_ver_1)
 
-    H_hor_1 = Reshape((16, 16, 256))(h_hor_1)
-    H_ver_1 = Permute((2, 1, 3))(Reshape((16, 16, 256))(h_ver_1))
+    H_hor_1 = Reshape((8, 8, 256))(h_hor_1)
+    H_ver_1 = Permute((2, 1, 3))(Reshape((8, 8, 256))(h_ver_1))
 
     c_hor_1 = Conv2D(filters=64, kernel_size=(3, 3),
                      kernel_initializer='he_normal', padding='same')(H_hor_1)
@@ -102,14 +106,11 @@ def cnn_sqd_lstm_model():
     c12 = BatchNormalization()(c12)
     c12 = Activation('relu')(c12)
 
-    # Two output layers for producing two images
-    output1 = Conv2D(filters=1, kernel_size=(1, 1), padding='same', name='out1')(c12)
-    output1 = Activation('linear')(output1)
+    ## output layer
+    output = Conv2D(filters=1, kernel_size=(1, 1), padding='same', name='out1')(c12)
+    output = Activation('linear')(output)
 
-    output2 = Conv2D(filters=1, kernel_size=(1, 1), padding='same', name='out2')(c12)
-    output2 = Activation('linear')(output2)
-
-    model = Model(inputs=[input], outputs=[output1, output2])  # Specify two outputs
+    model = Model(inputs=[input], outputs=[output])
 
     return model
 
@@ -119,7 +120,7 @@ if __name__ == '__main__':
 
     model.compile(
         optimizer=adam_v2.Adam(learning_rate=1e-3),
-        loss=keras.losses.mean_squared_error
+        loss=losses.mean_squared_error
     )
 
     earlystopper = EarlyStopping(
@@ -128,9 +129,46 @@ if __name__ == '__main__':
         verbose=1
     )
 
-    score = model.evaluate(X.reshape(X.shape[0], 1024, 1024, 1), y.reshape(y.shape[0], 1024, 1024, 1), batch_size=6)
+    from PIL import Image
+    import os
+    import numpy as np
+
+    # Replace 'path_to_data_folder' with the actual path to your data folder
+    data_folder = './dl_data_set/dl_deflec_eye/'
+
+    # List all subfolders in the data folder
+    subfolders = sorted([f.path for f in os.scandir(data_folder) if f.is_dir()])
+
+    # Initialize lists to store images
+    X = []
+    y = []
+
+    for subfolder in subfolders:
+        # Construct file paths for input and target images
+        input_path = os.path.join(subfolder, 'img_8.png')
+        output_path_1 = os.path.join(subfolder, 'img_9_norm.png')
+        # output_path_2 = os.path.join(subfolder, 'img_10_norm.png')
+
+        # Open and convert images to NumPy arrays
+        input_image = np.array(Image.open(input_path).convert('L'))  # 'L' mode for grayscale
+        output_image_1 = np.array(Image.open(output_path_1).convert('L'))
+        # output_image_2 = np.array(Image.open(output_path_2).convert('L'))
+
+        # Append images to lists
+        X.append(input_image)
+        y.append(output_image_1)
+
+    # Convert lists to NumPy arrays
+    X = np.array(X)
+    y = np.array(y)
+
+    # Print shapes to verify they match
+    print("X shape:", X.shape)
+    print("y shape:", y.shape)
+
+    score = model.evaluate(X.reshape(X.shape[0], 512, 512, 1), y.reshape(y.shape[0], 512, 512, 1), batch_size=6)
     model_checkpoint = ModelCheckpoint(
-        model_path,
+        'initial.h5',
         monitor='loss',
         verbose = 1,
         save_best_only=True
@@ -138,10 +176,10 @@ if __name__ == '__main__':
     model_checkpoint.best = score
 
     history = model.fit(
-        x = X.reshape(X.shape[0], 1024, 1024, 1),
-        y = y.reshape(y.shape[0], 1024, 1024, 1),
+        x = X.reshape(X.shape[0], 512, 512, 1),
+        y = y.reshape(y.shape[0], 512, 512, 1),
         batch_size=6,
         epochs=20000,
         verbose=True,
-        callbacks=[model_checkpoint]   
+        callbacks=[model_checkpoint]
     )
