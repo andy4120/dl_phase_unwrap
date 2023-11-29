@@ -1,9 +1,21 @@
-# import tensorflow as tf
+import os
+import tensorflow as tf
 from keras.optimizer_v2 import adam as adam_v2
 from keras.layers import Input, Conv2D, BatchNormalization, Activation, MaxPooling2D, Conv2DTranspose, concatenate, Reshape, Permute, Bidirectional, LSTM
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import losses
 from keras.models import Model
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+tf.compat.v1.enable_eager_execution()
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        tf.config.experimental.set_virtual_device_configuration(gpus[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=19000)])
+    except RuntimeError as e:
+        print(e)
+
 
 def cnn_sqd_lstm_model():
     """
