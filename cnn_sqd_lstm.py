@@ -1,10 +1,13 @@
 import os
 import tensorflow as tf
-from keras.optimizer_v2 import adam as adam_v2
+from keras.optimizers.optimizer_v2 import adam as adam_v2
 from keras.layers import Input, Conv2D, BatchNormalization, Activation, MaxPooling2D, Conv2DTranspose, concatenate, Reshape, Permute, Bidirectional, LSTM
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import losses
 from keras.models import Model
+
+from sklearn.model_selection import train_test_split
+from utils import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 tf.compat.v1.enable_eager_execution()
@@ -126,72 +129,77 @@ def cnn_sqd_lstm_model():
 
     return model
 
-if __name__ == '__main__':
-    model = cnn_sqd_lstm_model()
-    model.summary()
+def model_train_setup():
+    model = cnn_sqd_lstm_model() # load neural network layer
+    model.summary() # print out summary
 
+    # compile model
     model.compile(
         optimizer=adam_v2.Adam(learning_rate=1e-3),
         loss=losses.mean_squared_error
     )
 
+    return model
+
+def model_train(model_filepath: str):
     earlystopper = EarlyStopping(
         monitor='loss',
         patience=5000,
         verbose=1
     )
 
-    from PIL import Image
-    import os
-    import numpy as np
-
-    # Replace 'path_to_data_folder' with the actual path to your data folder
-    data_folder = './dl_data_set/dl_deflec_eye/'
-
-    # List all subfolders in the data folder
-    subfolders = sorted([f.path for f in os.scandir(data_folder) if f.is_dir()])
-
-    # Initialize lists to store images
-    X = []
-    y = []
-
-    for subfolder in subfolders:
-        # Construct file paths for input and target images
-        input_path = os.path.join(subfolder, 'img_8.png')
-        output_path_1 = os.path.join(subfolder, 'img_9_norm.png')
-        # output_path_2 = os.path.join(subfolder, 'img_10_norm.png')
-
-        # Open and convert images to NumPy arrays
-        input_image = np.array(Image.open(input_path).convert('L'))  # 'L' mode for grayscale
-        output_image_1 = np.array(Image.open(output_path_1).convert('L'))
-        # output_image_2 = np.array(Image.open(output_path_2).convert('L'))
-
-        # Append images to lists
-        X.append(input_image)
-        y.append(output_image_1)
-
-    # Convert lists to NumPy arrays
-    X = np.array(X)
-    y = np.array(y)
-
-    # Print shapes to verify they match
-    print("X shape:", X.shape)
-    print("y shape:", y.shape)
-
-    score = model.evaluate(X.reshape(X.shape[0], 512, 512, 1), y.reshape(y.shape[0], 512, 512, 1), batch_size=6)
     model_checkpoint = ModelCheckpoint(
-        'initial.h5',
-        monitor='loss',
-        verbose = 1,
+        filepath=model_filepath,
+        monitor='val_loss',  # Use validation loss for saving the best model
+        verbose=1,
         save_best_only=True
     )
-    model_checkpoint.best = score
 
     history = model.fit(
-        x = X.reshape(X.shape[0], 512, 512, 1),
-        y = y.reshape(y.shape[0], 512, 512, 1),
+        x=X_train.reshape(X_train.shape[0], 512, 512, 1),
+        y=Y_train.reshape(Y_train.shape[0], 512, 512, 1),
         batch_size=6,
-        epochs=20000,
+        epochs=500, #20000
         verbose=True,
-        callbacks=[model_checkpoint]
+        validation_data=(X_val.reshape(X_val.shape[0], 512, 512, 1), Y_val.reshape(Y_val.shape[0], 512, 512, 1)),
+        callbacks=[model_checkpoint, earlystopper]
     )
+
+    return history
+
+def training_data(data_folder: str, input_filename: str, output_filename: str):
+    # TODO: 1000 dataset splitted into Train:Validation:Test = 8:1:1
+
+    X, Y = img_loader(data_folder, input_filename, output_filename)
+
+    # Split the data into train, validation, and test sets
+    X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=0.1, random_state=42)
+    X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=0.1, random_state=42)
+
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test
+
+if __name__ == '__main__':
+    '''
+    Dataset Info
+    Raw (0-2pi)
+    - (1) Vertical: img_9.png
+    - (2) Horizontal: img_10.png
+    Normalized (0-255)
+    - (1) Vertical: img_9_norm.png
+    - (2) Horizontal: img_10_norm.png
+    '''
+
+    # load img data
+    data_folder = './dl_data_set/dl_deflec_eye/'
+    input_filename = 'img_8.png'
+    output_filename = 'img_10.png'
+    X_train, X_val, X_test, Y_train, Y_val, Y_test = training_data(data_folder, input_filename, output_filename)
+
+    model = model_train_setup() # create and load the model
+
+    model_filepath = './model/horizontal_raw.h5'
+    model_history = model_train(model_filepath)
+
+    # Evaluate on the test set
+    test_score = model.evaluate(X_test.reshape(X_test.shape[0], 512, 512, 1), Y_test.reshape(Y_test.shape[0], 512, 512, 1), batch_size=6)
+    print(f'Test Loss: {test_score}')
