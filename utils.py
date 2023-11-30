@@ -27,3 +27,16 @@ def img_loader(data_folder: str, input_filename: str, output_filename: str):
     print("y shape:", Y.shape)
 
     return X, Y
+
+def img_read_crop(img_filepath: str, x: int, y: int):
+    '''
+    Read single image for model prediction input, crop into 512 by 512 to match with tensor size
+    x,y coordinate is the bound starting coordinate
+    '''
+
+    input_image = cv2.imread(img_filepath, cv2.IMREAD_GRAYSCALE) # read img in gray
+    input_image = input_image[y:y+512, x:x+512] # crop image
+    # cv2.imwrite('input.png', input_image) # save cropped input image
+    input_for_prediction = input_image.reshape(1, 512, 512, 1) # reshape to match with tensor size
+
+    return input_for_prediction
