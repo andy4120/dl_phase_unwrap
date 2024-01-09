@@ -1,13 +1,14 @@
 import os
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.optimizers.optimizer_v2 import adam as adam_v2
 from keras.layers import Input, Conv2D, BatchNormalization, Activation, MaxPooling2D, Conv2DTranspose, concatenate, Reshape, Permute, Bidirectional, LSTM
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import losses
 from keras.models import Model
-
 from sklearn.model_selection import train_test_split
 from utils import *
+from results import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 tf.compat.v1.enable_eager_execution()
@@ -21,9 +22,9 @@ if gpus:
 
 
 def cnn_sqd_lstm_model():
-    """
+    '''
     Defines the joint convolutional and spatial quad-directional LSTM network
-    """
+    '''
 
     # input to the network
     input = Input((512, 512, 1))  # Input size changed to 512x512
@@ -136,15 +137,18 @@ def model_train_setup():
     # compile model
     model.compile(
         optimizer=adam_v2.Adam(learning_rate=1e-3),
-        loss=losses.mean_squared_error
+        loss=losses.mean_squared_error,
+        metrics=['accuracy']
     )
 
     return model
 
-def model_train(model_filepath: str):
+def model_train(model_name: str, model):
+    model_filepath = './model/' + model_name + '.h5' # model save path
+
     earlystopper = EarlyStopping(
         monitor='loss',
-        patience=5000,
+        patience=100,
         verbose=1
     )
 
@@ -165,7 +169,7 @@ def model_train(model_filepath: str):
         callbacks=[model_checkpoint, earlystopper]
     )
 
-    return history
+    return model, history
 
 def training_data(data_folder: str, input_filename: str, output_filename: str):
     # TODO: 1000 dataset splitted into Train:Validation:Test = 8:1:1
@@ -178,6 +182,140 @@ def training_data(data_folder: str, input_filename: str, output_filename: str):
 
     return X_train, X_val, X_test, Y_train, Y_val, Y_test
 
+def train_validation_acc_loss_plot(model_history, model_name: str) -> None:
+    '''
+    Training and validation accuracy and loss plot
+    @model_history: history of the model from the training, to load accuracy and loss values
+    @model_name: model name to save plots based on this label
+    '''
+
+    # extract the training and validation accuracy and loss
+    train_acc = model_history.history['accuracy']
+    val_acc = model_history.history['val_accuracy']
+    train_loss = model_history.history['loss']
+    val_loss = model_history.history['val_loss']
+
+    # plot training and validation accuracy
+    plt.figure(figsize=(8, 6))
+    plt.plot(train_acc, label='Train Accuracy', color='blue', alpha=0.7)
+    plt.plot(val_acc, label='Validation Accuracy', color='orange', alpha=0.7)
+    plt.title('Training and Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.savefig('./model/' + model_name + '_accuracy.png')
+
+    # plot training and validation loss
+    plt.figure(figsize=(8, 6))
+    plt.plot(train_loss, label='Train Loss', color='blue', alpha=0.7)
+    plt.plot(val_loss, label='Validation Loss', color='orange', alpha=0.7)
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('./model/' + model_name + '_loss.png')
+
+    # plot training and validation loss in log scale
+    plt.figure(figsize=(8, 6))
+    plt.plot(train_loss, label='Train Loss', color='blue', alpha=0.7)
+    plt.plot(val_loss, label='Validation Loss', color='orange', alpha=0.7)
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.yscale('log') # set y-axis to logarithmic scale
+    plt.legend()
+    plt.savefig('./model/' + model_name + '_loss_log.png')
+
+def test_accuracy_loss(model, X_test: np.array, Y_test: np.array) -> None:
+    '''
+    Print test set accuracy and loss
+    @model: trained model
+    @X_test: test set input
+    @Y_test: test set output (GT)
+    '''
+
+    # evaluate on the test set
+    test_score = model.evaluate(X_test.reshape(X_test.shape[0], 512, 512, 1), Y_test.reshape(Y_test.shape[0], 512, 512, 1), batch_size=6)
+    
+    # print the test accuracy from the evaluation results
+    print(f'Test Loss: {test_score[0]:.4f}')
+    print(f'Test Accuracy: {test_score[1]:.4f}')
+
+def predict_single_test_set(model_name: str, X_test: np.array, Y_test: np.array, set_index: int, \
+                            crop: bool, crop_x: int, crop_y: int, pixel_length: int, direction: str) -> None:
+    '''
+    Predict one of the images from the test set
+    @model_name: model name label for the location of the pre-trained model
+    @X_test: input test set
+    @Y_test: output (GT) test set
+    @set_index: n-th image will be analyzed from the test set
+    @plot_path: 3 images (input, GT, predicted) with colorbar (2pi) will be plotted in a single plot
+    @crop: whether to crop the inner area of the phase or not for further analysis
+    @crop_x: x-coordinate crop starting position
+    @crop_y: y-coordinate crop starting position
+    @pixel_length: width and length of the cropped area
+    @direction: phase direction, either 'horizontal' or 'vertical'
+    '''
+
+    input_image = X_test[set_index].reshape(512, 512) # n-th X test set image as input
+    ground_truth = Y_test[set_index].reshape(512, 512) # n-th Y test set image as ground truth
+
+    input_for_prediction = input_image.reshape(1, 512, 512, 1) # Reshape the input image for prediction
+
+    model_path = './model/' + model_name + '.h5' # pre-trained model path
+    model = tf.keras.models.load_model(model_path) # load pre-trained model for prediction
+    predicted_output = model.predict(input_for_prediction).reshape(512, 512) # Predict using the loaded model
+
+    if crop: # if checking zoom-in version (small square portion within the profile)
+        input_image = input_image[crop_y : (crop_y + pixel_length), crop_x : (crop_x + pixel_length)]
+        ground_truth = ground_truth[crop_y : (crop_y + pixel_length), crop_x : (crop_x + pixel_length)]
+        predicted_output = predicted_output[crop_y : (crop_y + pixel_length), crop_x : (crop_x + pixel_length)]
+
+        crop_plot_path = './model/' + model_name + '_test_single_crop.png' # cropped profile plot save path
+        gt_pred_profile_plot(gt_img=ground_truth, pred_img=predicted_output, direction=direction, index=(pixel_length / 2), plot_save_path=crop_plot_path)
+
+    # Plot and save the images
+    fig, axs = plt.subplots(1, 3, figsize=(12, 5))
+
+    # Input Image
+    img = axs[0].imshow(input_image, cmap='gray')
+    fig.colorbar(img, ax=axs[0])
+    axs[0].set_title('Input Image')
+    axs[0].axis('off')
+
+    # Ground Truth
+    img = axs[1].imshow(ground_truth, cmap='gray')
+    fig.colorbar(img, ax=axs[1])
+    axs[1].set_title('Ground Truth')
+    axs[1].axis('off')
+
+    # Predicted Output
+    img = axs[2].imshow(predicted_output, cmap='gray')
+    fig.colorbar(img, ax=axs[2])
+    axs[2].set_title('Predicted Output')
+    axs[2].axis('off')
+
+    fig.tight_layout()
+    fig.savefig('./model/' + model_name + '_test_single.png')
+
+def predict_single_real_data(model_name: str, real_img_path: str, real_crop_x: int, real_crop_y: int, direction: str, index: int) -> None:
+    '''
+    Predict single real image data as an input
+    @model_name: model name label for the location of the pre-trained model
+    @real_img_path: real input image
+    @real_crop_x: real img crop starting x-coordinate position
+    @real_crop_y: real img crop starting y-coordinate position
+    @direction: phase direction, either 'horizontal' or 'vertical'
+    @index: profile pixel location
+    @plot_save_path: profile plot save location
+    '''
+
+    input_image = img_read_crop(real_img_path, real_crop_x, real_crop_y) # real image input data
+    model_path = './model/' + model_name + '.h5' # pre-trained model path
+    model = tf.keras.models.load_model(model_path) # load pre-trained model for prediction
+    predicted_output = model.predict(input_image).reshape(512, 512) # predict using the pre-trained model
+    pred_profile_plot(pred_img=predicted_output, direction=direction, index=index, plot_save_path='./model/' + model_name + '_pred_real.png') # plot profile
+
 if __name__ == '__main__':
     '''
     Dataset Info
@@ -188,18 +326,36 @@ if __name__ == '__main__':
     - (1) Vertical: img_9_norm.png
     - (2) Horizontal: img_10_norm.png
     '''
-
-    # load img data
+    
+    ''' Data Loading '''
+    # load img data, split into Train/Validation/Test set
     data_folder = './dl_data_set/dl_deflec_eye/'
     input_filename = 'img_8.png'
     output_filename = 'img_10.png'
     X_train, X_val, X_test, Y_train, Y_val, Y_test = training_data(data_folder, input_filename, output_filename)
 
+    ''' Training '''
+    # model initialization & training
+    model_name = 'horizontal_raw' # model name
     model = model_train_setup() # create and load the model
+    model, model_history = model_train(model_name, model) # train the model
+    
+    # training and validation statistics
+    train_validation_acc_loss_plot(model_history, model_name) # training and validation accuracy and loss plots
 
-    model_filepath = './model/horizontal_raw.h5'
-    model_history = model_train(model_filepath)
+    # test statistics
+    test_accuracy_loss(model, X_test, Y_test) # test accuracy and loss
 
-    # Evaluate on the test set
-    test_score = model.evaluate(X_test.reshape(X_test.shape[0], 512, 512, 1), Y_test.reshape(Y_test.shape[0], 512, 512, 1), batch_size=6)
-    print(f'Test Loss: {test_score}')
+    ''' Prediction '''
+    model_name = 'horizontal_raw' # model name
+    direction = 'horizontal'
+
+    # predict one of the test set image and plot for visualization
+    set_index = 0
+    plot_path = './model/horizontal_raw_test_single.png'
+    predict_single_test_set(model_name=model_name, X_test=X_test, Y_test=Y_test, set_index=set_index, \
+                            crop=True, crop_x=50, crop_y=50, pixel_length=50, direction=direction)
+    
+    # predict real image as input (no GT)
+    real_img = 'C1.png'
+    predict_single_real_data(model_name=model_name, real_img_path=real_img, real_crop_x=250, real_crop_y=300, direction=direction, index=150)
