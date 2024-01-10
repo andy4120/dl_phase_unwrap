@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 def phase_map_calculate(img_paths: list) -> np.array:
+    '''
+    Naive phase map calculation: arctan [ (I2 - I4) / (I1 - I3) ]
+    '''
+
     # read images in grayscale and convert uint8 into float value
     img_1 = cv2.imread(img_paths[0], cv2.IMREAD_GRAYSCALE).astype(np.float32)
     img_2 = cv2.imread(img_paths[1], cv2.IMREAD_GRAYSCALE).astype(np.float32)
@@ -19,6 +23,55 @@ def phase_map_calculate(img_paths: list) -> np.array:
     phase_map += np.pi # add pi to the output because np.artan2 is from -pi to +pi, make it into 0 to 2pi
 
     return phase_map
+
+def phase_map_calculate_zero_padding(img_paths: list) -> np.array:
+    '''
+    Zero-padding applied phase map calculation, for simulated data
+    For denominator and numerator of arctan equation, if they have 0 (black) area within the pattern area, then convert the pixel value into 1 (0-255 range)
+    '''
+
+    # read images in grayscale and convert uint8 into float value
+    img_1 = cv2.imread(img_paths[0], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+    img_2 = cv2.imread(img_paths[1], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+    img_3 = cv2.imread(img_paths[2], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+    img_4 = cv2.imread(img_paths[3], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+
+    a = (img_2 - img_4) # numerator
+    white_pixels = a != 0
+    a[white_pixels] = [255] # if not 0 (black, intended background zero-padded), make it into white (255) value
+
+    contours, hierarchy = cv2.findContours(a.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # Find contours in the segmented image
+    min_contour_area = 1  # Adjust this threshold based on your image and requirements
+    filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_contour_area] # Filter out small contours (noise) based on a threshold area
+
+    contour_mask = np.zeros_like(a)
+    cv2.drawContours(contour_mask, filtered_contours, -1, 255, thickness=cv2.FILLED) # Create a mask for the filtered contours
+    black_pixels_mask = (contour_mask != 0) # Create a binary mask for the pixels in the original image where the contour mask is black
+
+    # Update the original image based on the masks
+    numerator = np.copy(img_2 - img_4)
+    numerator[black_pixels_mask & (numerator == 0)] = 1 # Set pixels to 1 where contour mask is black and original pixel value is 0
+
+    b = (img_1 - img_3) # denominator
+    white_pixels = b != 0
+    b[white_pixels] = [255] # if not 0 (black, intended background zero-padded), make it into white (255) value
+
+    contours, hierarchy = cv2.findContours(b.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # Find contours in the segmented image
+    min_contour_area = 1  # Adjust this threshold based on your image and requirements
+    filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_contour_area] # Filter out small contours (noise) based on a threshold area
+
+    contour_mask = np.zeros_like(b)
+    cv2.drawContours(contour_mask, filtered_contours, -1, 255, thickness=cv2.FILLED) # Create a mask for the filtered contours
+    black_pixels_mask = (contour_mask != 0) # Create a binary mask for the pixels in the original image where the contour mask is black
+
+    # Update the original image based on the masks
+    denominator = np.copy(img_1 - img_3)
+    denominator[black_pixels_mask & (denominator == 0)] = 1 # Set pixels to 1 where contour mask is black and original pixel value is 0
+
+    phase_map = np.arctan2(numerator, denominator) # phase map calculation
+    phase_map_normalized = np.where(phase_map == 0, 0, cv2.normalize(phase_map, None, 1, 255, cv2.NORM_MINMAX)) # convert phase map into 1-255 scale, keep the 0 as zero padding
+
+    return phase_map_normalized
 
 def read_folder(base_path: str, max_data: int) -> list:
     '''
@@ -61,6 +114,13 @@ def save_unwrapped_phase(sub_folder: str, phase_map_vertical: np.array, phase_ma
     horizontal_norm_file_name = horizontal_file_name.split('.')[0] + '_norm.' + horizontal_file_name.split('.')[1]
     horizontal_minmax = cv2.normalize(phase_map_horizontal, None, 0, 255, cv2.NORM_MINMAX)
     cv2.imwrite(os.path.join(sub_folder, horizontal_norm_file_name), horizontal_minmax)
+
+def save_unwrapped_phase_zero_padding(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, vertical_file_name: str, horizontal_file_name: str):
+    # save minmax-normalized images (0-255), normalization done in zero-padding logic
+    vertical_norm_file_name = vertical_file_name.split('.')[0] + '_norm.' + vertical_file_name.split('.')[1]
+    cv2.imwrite(os.path.join(sub_folder, vertical_norm_file_name), phase_map_vertical)
+    horizontal_norm_file_name = horizontal_file_name.split('.')[0] + '_norm.' + horizontal_file_name.split('.')[1]
+    cv2.imwrite(os.path.join(sub_folder, horizontal_norm_file_name), phase_map_horizontal)
 
 def draw_plot_save_phase_profile(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, column: int, row: int):
     # color the column and row with max value (2pi)
@@ -113,6 +173,17 @@ def draw_plot_save_singleshot_profile(sub_folder: str, img_file_name: str, colum
 if __name__ == '__main__':
     base_path = './dl_data_set/dl_deflec_eye/'
     sub_folders = read_folder(base_path, 999)
+
+    ''' Zero-Padding Phase Map '''
+    for s in tqdm(sub_folders):
+        # get single period unwrapped phase maps
+        phase_map_vertical = phase_map_calculate_zero_padding(read_vertical_4_phase(s))
+        phase_map_horizontal = phase_map_calculate_zero_padding(read_horizontal_4_phase(s))
+
+        # save unwrapped phase
+        save_unwrapped_phase_zero_padding(s, phase_map_vertical, phase_map_horizontal, 'img_9.png', 'img_10.png')
+
+    ''' Naive Phase Calculation Logic '''
     for s in tqdm(sub_folders):
         # get single period unwrapped phase maps
         phase_map_vertical = phase_map_calculate(read_vertical_4_phase(s))
