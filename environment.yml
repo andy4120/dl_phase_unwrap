@@ -5,4 +5,14 @@ channels:
 dependencies:
     - python=3.8
     - pip
-    - scikit-image
+    - cudatoolkit=11.0
+    - tensorflow=2.8
+    - keras
+    - numpy
+    - matplotlib
+    - ipywidgets
+    - tqdm
+    - keras-preprocessing
+    - scikit-learn
+    - pip:
+      - opencv-contrib-python-headless==4.4.0.40
