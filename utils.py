@@ -32,6 +32,33 @@ def img_loader(data_folder: str, input_filename: str, output_filename: str):
 
     return X, Y
 
+def single_shot_data_numpy(data_folder: str, filename: str) -> None:
+    '''
+    Read all single shot datapoints (input, X) and save this set of data in numpy array (*.npy)
+    @data_folder: base data folder location
+    @filename: file name of the single-shot pattern
+    '''
+
+    subfolders = sorted([f.path for f in os.scandir(data_folder) if f.is_dir()]) # List all subfolders in the data folder
+
+    single_shot_list = []
+    for s in subfolders:
+        single_shot_path = os.path.join(s, filename) # single-shot img path
+        sinhgle_shot_img = cv2.imread(single_shot_path, cv2.IMREAD_GRAYSCALE) # read img
+        single_shot_list.append(sinhgle_shot_img)
+
+    np.save(os.path.join(data_folder, 'single_shot.npy'), np.stack(single_shot_list)) # save in npy
+
+def numpy_loader(data_folder: str, numpy_filename: str):
+    '''
+    Read images that are saved in numpy array format
+    '''
+
+    X = np.load(os.path.join(data_folder, 'single_shot.npy'))
+    Y = np.load(os.path.join(data_folder, numpy_filename))
+
+    return X, Y
+
 def img_read_crop(img_filepath: str, x: int, y: int) -> np.array:
     '''
     Read single image for model prediction input, crop into 512 by 512 to match with tensor size
