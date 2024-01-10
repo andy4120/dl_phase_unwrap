@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 
-def img_loader(data_folder: str, input_filename: str, output_filename: str) -> tuple(np.ndarray, np.ndarray):
+def img_loader(data_folder: str, input_filename: str, output_filename: str):
     '''
     Read images from dataset folder, split them into X (input) and Y (output) data
     '''
@@ -32,7 +32,7 @@ def img_loader(data_folder: str, input_filename: str, output_filename: str) -> t
 
     return X, Y
 
-def img_read_crop(img_filepath: str, x: int, y: int) -> np.ndarray:
+def img_read_crop(img_filepath: str, x: int, y: int) -> np.array:
     '''
     Read single image for model prediction input, crop into 512 by 512 to match with tensor size
     x,y coordinate is the bound starting coordinate
