@@ -102,6 +102,16 @@ def read_horizontal_4_phase(base_path: str) -> list:
 
     return [imgpath_1, imgpath_2, imgpath_3, imgpath_4]
 
+def minmax_normalize(img: np.ndarray) -> np.ndarray:
+    '''
+    Convert [0-2pi] scale into [0-255] scale
+    @img: 0-2pi range image
+    @return: 0-255 scaled image
+    '''
+
+    result = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+    return result
+
 def save_unwrapped_phase(sub_folder: str, phase_map_vertical: np.array, phase_map_horizontal: np.array, vertical_file_name: str, horizontal_file_name: str):
     # save phase unwrapped files (0-2pi)
     cv2.imwrite(os.path.join(sub_folder, vertical_file_name), phase_map_vertical)
@@ -174,6 +184,34 @@ if __name__ == '__main__':
     base_path = './dl_data_set/dl_deflec_eye/'
     sub_folders = read_folder(base_path, 999)
 
+    ''' Naive Phase Calculation Logic '''
+    vertical_numpy_list, horizontal_numpy_list = [], []
+    vertical_norm_numpy_list, horizontal_norm_numpy_list = [], []
+
+    for s in tqdm(sub_folders):
+        # get single period unwrapped phase maps
+        phase_map_vertical = phase_map_calculate(read_vertical_4_phase(s))
+        phase_map_horizontal = phase_map_calculate(read_horizontal_4_phase(s))
+
+        # apply minmax normalization to scale [0-2pi] -> [0-255]
+        phase_map_vertical_norm = minmax_normalize(phase_map_vertical)
+        phase_map_horizontal_norm = minmax_normalize(phase_map_horizontal)
+
+        # to compose a numpy list
+        vertical_numpy_list.append(phase_map_vertical)
+        horizontal_numpy_list.append(phase_map_horizontal)
+        vertical_norm_numpy_list.append(phase_map_vertical_norm)
+        horizontal_norm_numpy_list.append(phase_map_horizontal_norm)
+
+        # save unwrapped phase in 8-bit image file
+        save_unwrapped_phase(s, phase_map_vertical, phase_map_horizontal, 'img_9.png', 'img_10.png')
+
+    # construct a numpy list, shape=(n, 512, 512) then save in numpy array
+    np.save(os.path.join(base_path, 'vertical_raw.npy'), np.stack(vertical_numpy_list))
+    np.save(os.path.join(base_path, 'horizontal_raw.npy'), np.stack(horizontal_numpy_list))
+    np.save(os.path.join(base_path, 'vertical_norm.npy'), np.stack(vertical_norm_numpy_list))
+    np.save(os.path.join(base_path, 'horizontal_norm.npy'), np.stack(horizontal_norm_numpy_list))
+        
     ''' Zero-Padding Phase Map '''
     for s in tqdm(sub_folders):
         # get single period unwrapped phase maps
@@ -182,22 +220,3 @@ if __name__ == '__main__':
 
         # save unwrapped phase
         save_unwrapped_phase_zero_padding(s, phase_map_vertical, phase_map_horizontal, 'img_9.png', 'img_10.png')
-
-    ''' Naive Phase Calculation Logic '''
-    for s in tqdm(sub_folders):
-        # get single period unwrapped phase maps
-        phase_map_vertical = phase_map_calculate(read_vertical_4_phase(s))
-        phase_map_horizontal = phase_map_calculate(read_horizontal_4_phase(s))
-
-        # save unwrapped phase
-        save_unwrapped_phase(s, phase_map_vertical, phase_map_horizontal, 'img_9.png', 'img_10.png')
-
-        ''' DEBUG PURPOSES '''
-        """
-        # unwrapped phase map profile info save
-        draw_plot_save_phase_profile(s, phase_map_vertical, phase_map_horizontal, 150, 150)
-
-        # single shot pattern profile info save
-        draw_plot_save_singleshot_profile(s, 'img_8.png', 150, 150)
-        """
-        
