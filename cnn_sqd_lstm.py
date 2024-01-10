@@ -171,10 +171,22 @@ def model_train(model_name: str, model):
 
     return model, history
 
-def training_data(data_folder: str, input_filename: str, output_filename: str):
+def training_data_img(data_folder: str, input_filename: str, output_filename: str):
     # TODO: 1000 dataset splitted into Train:Validation:Test = 8:1:1
 
     X, Y = img_loader(data_folder, input_filename, output_filename)
+
+    # Split the data into train, validation, and test sets
+    X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=0.1, random_state=42)
+    X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=0.1, random_state=42)
+
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test
+
+def training_data_numpy(data_folder: str, numpy_filename: str, single_shot_filename: str):
+    # TODO: 1000 dataset splitted into Train:Validation:Test = 8:1:1
+
+    single_shot_data_numpy(data_folder, single_shot_filename) # convert single-shot input data into numpy first
+    X, Y = numpy_loader(data_folder, numpy_filename) # load saved numpy arrays
 
     # Split the data into train, validation, and test sets
     X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=0.1, random_state=42)
@@ -331,8 +343,10 @@ if __name__ == '__main__':
     # load img data, split into Train/Validation/Test set
     data_folder = './dl_data_set/dl_deflec_eye/'
     input_filename = 'img_8.png'
-    output_filename = 'img_10.png'
-    X_train, X_val, X_test, Y_train, Y_val, Y_test = training_data(data_folder, input_filename, output_filename)
+    # output_filename = 'img_10.png'
+    # X_train, X_val, X_test, Y_train, Y_val, Y_test = training_data_img(data_folder, input_filename, output_filename)
+    numpy_filename = 'horizontal_norm.npy'
+    X_train, X_val, X_test, Y_train, Y_val, Y_test = training_data_numpy(data_folder, numpy_filename, input_filename)
 
     ''' Training '''
     # model initialization & training
