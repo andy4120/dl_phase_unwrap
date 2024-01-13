@@ -83,6 +83,9 @@ def gt_pred_profile_plot(gt_img: np.ndarray, pred_img: np.ndarray, direction: st
         gt_img[index, :] = 2 * np.pi
         pred_profile = pred_img[index, :].copy()
 
+    print('\nProfile:')
+    calculation_metrics(gt_profile, pred_profile)
+
     # plot
     fig, axs = plt.subplots(1, 2, figsize=(12,6))
     p0 = axs[0].imshow(gt_img, cmap='gray')
@@ -102,6 +105,15 @@ def gt_pred_profile_plot(gt_img: np.ndarray, pred_img: np.ndarray, direction: st
 
     fig.tight_layout() # to avoid axes overlapping
     fig.savefig(plot_save_path) # save
+
+def error_difference_map(model_name: str, gt_img: np.ndarray, pred_img: np.ndarray):
+    difference_map = np.abs(gt_img - pred_img)
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(difference_map, cmap='gray')
+    plt.title('Difference Map')
+    plt.colorbar()
+    plt.savefig('./model/' + model_name + '_err_map.png')
 
 if __name__ == '__main__':
     gt = './img_9_norm.png'
