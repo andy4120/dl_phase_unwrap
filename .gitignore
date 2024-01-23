@@ -160,7 +160,8 @@ cython_debug/
 #.idea/
 
 # dataset
-dl_data_set/*
+dl_data_set*/*
+eye_model/*
 
 # model
-model/*
+model*/*
