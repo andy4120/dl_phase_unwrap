@@ -19,8 +19,11 @@ def phase_map_calculate(img_paths: list) -> np.array:
     img_3 = cv2.imread(img_paths[2], cv2.IMREAD_GRAYSCALE).astype(np.float32)
     img_4 = cv2.imread(img_paths[3], cv2.IMREAD_GRAYSCALE).astype(np.float32)
 
-    phase_map = np.arctan2((img_2 - img_4), (img_1 - img_3)) # add epsilon = 1e-10 to denominator if required (division by 0)
-    phase_map += np.pi # add pi to the output because np.artan2 is from -pi to +pi, make it into 0 to 2pi
+    phase_map = np.arctan2((img_4 - img_2), (img_3 - img_1)) # add epsilon = 1e-10 to denominator if required (division by 0)
+    phase_map[phase_map < 0] += 2 * np.pi # negative values add 2pi
+
+    ''' OLD LOGIC '''
+    # phase_map += np.pi # add pi to the output because np.artan2 is from -pi to +pi, make it into 0 to 2pi
 
     return phase_map
 
