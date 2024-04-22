@@ -32,6 +32,32 @@ def img_loader(data_folder: str, input_filename: str, output_filename: str):
 
     return X, Y
 
+def phase_pair_img_loader(data_folder: str, input_filename_1: str, input_filename_2: str):
+    '''
+    Read images from dataset folder, X (input) contains a pair of images (vertical and horizontal phasemap)
+    '''
+    subfolders = sorted([f.path for f in os.scandir(data_folder) if f.is_dir()]) # List all subfolders in the data folder
+
+    X = []
+    for s in subfolders:
+        # Construct file paths for input and target images
+        input_path_1 = os.path.join(s, input_filename_1)
+        input_path_2 = os.path.join(s, input_filename_2)
+
+        # Open and convert images to NumPy arrays
+        input_image_1 = cv2.imread(input_path_1, cv2.IMREAD_GRAYSCALE)
+        input_image_2 = cv2.imread(input_path_2, cv2.IMREAD_GRAYSCALE)
+
+        # Append images to lists
+        X.append(np.dstack((input_image_1, input_image_2)))
+
+    # Convert lists to NumPy arrays
+    X = np.array(X)
+
+    print("X shape:", X.shape)
+
+    return X
+
 def single_shot_data_numpy(data_folder: str, filename: str) -> None:
     '''
     Read all single shot datapoints (input, X) and save this set of data in numpy array (*.npy)
@@ -59,7 +85,7 @@ def numpy_loader(data_folder: str, numpy_filename: str):
 
     return X, Y
 
-def img_read_crop(img_filepath: str, x: int, y: int) -> np.array:
+def img_read_crop(img_filepath: str, x: int, y: int, reshape: bool) -> np.array:
     '''
     Read single image for model prediction input, crop into 512 by 512 to match with tensor size
     x,y coordinate is the bound starting coordinate
@@ -68,6 +94,7 @@ def img_read_crop(img_filepath: str, x: int, y: int) -> np.array:
     input_image = cv2.imread(img_filepath, cv2.IMREAD_GRAYSCALE) # read img in gray
     input_image = input_image[y:y+512, x:x+512] # crop image
     # cv2.imwrite('input.png', input_image) # save cropped input image
-    input_for_prediction = input_image.reshape(1, 512, 512, 1) # reshape to match with tensor size
+    if reshape: 
+        input_image = input_image.reshape(1, 512, 512, 1) # reshape to match with tensor size
 
-    return input_for_prediction
+    return input_image
