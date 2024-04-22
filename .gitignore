@@ -162,6 +162,7 @@ cython_debug/
 # dataset
 dl_data_set*/*
 eye_model/*
+DL_data*/*
 
 # model
 model*/*

@@ -6,7 +6,8 @@ import tensorflow as tf
 from keras import models
 from keras.layers import *
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, CSVLogger
-from keras.optimizers.optimizer_v2 import adam as adam_v2
+# from keras.optimizers.optimizer_v2 import adam as adam_v2 # Linux
+from keras.optimizer_v2 import adam as adam_v2 # Windows
 from sklearn.model_selection import train_test_split
 from utils import *
 from results import *
@@ -54,7 +55,7 @@ class PhaseGazeModel:
         '''
         # TODO: file loading depends on the file format
 
-        with open('./dl_data_set/config.json', "r") as handler: data_dict = json.load(handler)
+        with open(os.path.join(data_folder, 'config.json'), "r") as handler: data_dict = json.load(handler)
 
         file_path_real_gaze_pairs = []
         for frame in data_dict['frames']:
@@ -64,7 +65,7 @@ class PhaseGazeModel:
             # file_path_real_gaze_pairs.append((file_path, real_gaze))
 
         Y = np.array(file_path_real_gaze_pairs)
-        X = phase_pair_img_loader(data_folder, input_filename_1, input_filename_2)
+        X = phase_pair_img_loader(os.path.join(data_folder, 'imgs'), input_filename_1, input_filename_2)
 
         # Split the data into train, validation, and test sets
         self.X_train, X_temp, self.Y_train, Y_temp = train_test_split(X, Y, test_size=0.1, random_state=42)
